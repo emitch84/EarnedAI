@@ -1,0 +1,4 @@
+id,name,type,budget,start_date,end_date
+P001,Project Alpha - Data Center Migration,IT Infra,1200000,2025-10-14,2026-04-12
+P002,Project Beta - HQ Construction,Construction,5500000,2025-10-04,2026-10-04
+P003,Project Gamma - AI Platform Launch,Software,850000,2025-10-24,2026-02-01
