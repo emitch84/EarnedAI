@@ -209,6 +209,21 @@ st.markdown("""
         color: var(--primary-color);
         font-weight: 700;
     }
+    /* Mobile Responsive Adjustments */
+    @media (max-width: 768px) {
+        .hud-row {
+            flex-wrap: wrap;
+        }
+        .hud-metric {
+            min-width: 45%; /* 2 per row on mobile */
+            margin-bottom: 8px;
+        }
+        .hud-col {
+            min-width: 100% !important;
+            margin: 0 !important;
+            margin-bottom: 20px !important;
+        }
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -270,7 +285,7 @@ top_level_html = f"""<div class="hud-container">
     </div>
     <div class="hud-divider"></div>
     <div class="hud-row">
-        <div style="flex:1; margin-right: 10px;">
+        <div class="hud-col" style="flex:1; margin-right: 10px;">
             <div class="hud-section-header">Last 30 Days (Trend)</div>
             <div class="hud-row">
                 <div class="hud-metric">
@@ -295,7 +310,7 @@ top_level_html = f"""<div class="hud-container">
                 </div>
             </div>
         </div>
-        <div style="flex:1; margin-left: 10px;">
+        <div class="hud-col" style="flex:1; margin-left: 10px;">
             <div class="hud-section-header">Project To Date</div>
             <div class="hud-row">
                 <div class="hud-metric">
