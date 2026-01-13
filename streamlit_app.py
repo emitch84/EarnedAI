@@ -112,18 +112,7 @@ period_spi = period_ev / period_pv if period_pv > 0 else 1.0
 # --- Dashboard Header ---
 st.title(f"{selected_proj_name}")
 
-# Row 1: High Level Totals & Forecasts
-r1_c1, r1_c2, r1_c3, r1_c4 = st.columns(4)
-with r1_c1:
-    st.metric("Budget (BAC)", f"${total_bac:,.0f}")
-with r1_c2:
-    st.metric("Baseline Finish", baseline_finish.strftime("%Y-%m-%d"))
-with r1_c3:
-    st.metric("EAC (Forecast)", f"${eac:,.0f}", delta=f"${vac:,.0f}", delta_color="normal")
-with r1_c4:
-    st.metric("TCPI (To Finish)", f"{tcpi:.2f}")
 
-st.markdown("---")
 
 # Previous Period (Day -60 to -30) for Trend Analysis
 prev_month_start = month_start_date - pd.Timedelta(days=30)
@@ -132,7 +121,124 @@ prev_ev_cum = prev_agg.groupby("TaskID")["EV"].max().sum() if not prev_agg.empty
 prev_ac_cum = prev_agg.groupby("TaskID")["AC"].max().sum() if not prev_agg.empty else 0
 prev_pv_cum = prev_agg.groupby("TaskID")["PV"].max().sum() if not prev_agg.empty else 0
 
-# Previous Period Metrics
+# --- Custom CSS for condensed "HUD" and styled Tabs ---
+st.markdown("""
+<style>
+    /* Metric HUD Container - Dark/Light Mode Compatible */
+    .hud-container {
+        background-color: var(--secondary-background-color);
+        padding: 15px 20px;
+        border-radius: 12px;
+        border: 1px solid rgba(128, 128, 128, 0.2);
+        margin-bottom: 25px;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+    }
+    .hud-row {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 12px;
+        gap: 15px;
+    }
+    .hud-row:last-child { margin-bottom: 0; }
+    
+    .hud-metric {
+        flex: 1;
+        background: var(--background-color);
+        padding: 8px 12px;
+        border-radius: 8px;
+        border: 1px solid rgba(128, 128, 128, 0.2);
+        text-align: center;
+        min-width: 100px;
+    }
+    .hud-label {
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: var(--text-color);
+        opacity: 0.7;
+        font-weight: 600;
+        margin-bottom: 4px;
+    }
+    .hud-value {
+        font-size: 1.1rem;
+        font-weight: 700;
+        color: var(--text-color);
+    }
+    .hud-delta {
+        font-size: 0.7rem;
+        margin-top: 2px;
+        font-weight: 500;
+    }
+    /* Adjusted colors for better visibility on both backgrounds */
+    .delta-pos { color: #28a745; } /* Green */
+    .delta-neg { color: #dc3545; } /* Red */
+    .delta-neu { color: #6c757d; } /* Grey */
+    
+    .hud-divider {
+        border-top: 1px dashed rgba(128, 128, 128, 0.3);
+        margin: 10px 0;
+    }
+    .hud-section-header {
+        font-size: 0.8rem;
+        font-weight: 700;
+        color: var(--text-color);
+        opacity: 0.9;
+        margin-bottom: 8px;
+        text-align: left;
+    }
+
+    /* Enhanced Tab Styling - Dark Mode Ready */
+    div[data-baseweb="tab-list"] {
+        gap: 8px;
+        background: transparent;
+    }
+    button[data-baseweb="tab"] {
+        background-color: var(--secondary-background-color);
+        border: 1px solid rgba(128, 128, 128, 0.2);
+        color: var(--text-color);
+        border-radius: 6px;
+        padding: 8px 16px;
+        font-size: 0.9rem;
+        font-weight: 600;
+        height: auto;
+    }
+    button[data-baseweb="tab"]:hover {
+        border-color: rgba(128, 128, 128, 0.5);
+        background-color: var(--background-color);
+    }
+    button[data-baseweb="tab"][aria-selected="true"] {
+        background-color: rgba(128, 128, 128, 0.1);
+        border-color: var(--primary-color);
+        color: var(--primary-color);
+        font-weight: 700;
+    }
+</style>
+""", unsafe_allow_html=True)
+
+# Helper to format delta HTML
+def fmt_delta(val, suffix="", inverse=False):
+    if val is None: return ""
+    color = "delta-neu"
+    if val > 0: color = "delta-neg" if inverse else "delta-pos"
+    elif val < 0: color = "delta-pos" if inverse else "delta-neg"
+    
+    sign = "+" if val > 0 else ""
+    return f'<div class="hud-delta {color}">{sign}{val:,.0f}{suffix}</div>' if isinstance(val, (int, float)) and abs(val) > 0.001 else ""
+
+def fmt_idx_delta(val): # For CPI/SPI
+    color = "delta-pos" if val >= 0 else "delta-neg"
+    sign = "+" if val > 0 else ""
+    return f'<div class="hud-delta {color}">{sign}{val:.2f}</div>'
+
+# --- HTML HUD Construction ---
+
+# Re-calculate Previous Period Metrics (Restored)
+prev_month_start = month_start_date - pd.Timedelta(days=30)
+prev_agg = logs_df[(logs_df["ProjectID"] == selected_proj_id) & (logs_df["Date"] <= prev_month_start)]
+prev_ev_cum = prev_agg.groupby("TaskID")["EV"].max().sum() if not prev_agg.empty else 0
+prev_ac_cum = prev_agg.groupby("TaskID")["AC"].max().sum() if not prev_agg.empty else 0
+prev_pv_cum = prev_agg.groupby("TaskID")["PV"].max().sum() if not prev_agg.empty else 0
+
 prev_period_ev = past_ev - prev_ev_cum
 prev_period_ac = past_ac - prev_ac_cum
 prev_period_pv = past_pv - prev_pv_cum
@@ -140,34 +246,145 @@ prev_period_pv = past_pv - prev_pv_cum
 prev_period_cv = prev_period_ev - prev_period_ac
 prev_period_sv = prev_period_ev - prev_period_pv
 
-# Row 2: Current Period Performance (Last 30 Days)
-st.subheader("Current Period Performance (Last 30 Days)")
-r2_c1, r2_c2, r2_c3, r2_c4 = st.columns(4)
-with r2_c1:
-    st.metric("CPI (Current)", f"{period_cpi:.3f}", delta=f"{period_cpi - 1.0:.2f}", help="Efficiency in the last 30 days")
-with r2_c2:
-    st.metric("SPI (Current)", f"{period_spi:.3f}", delta=f"{period_spi - 1.0:.2f}", help="Schedule efficiency in the last 30 days")
-with r2_c3:
-    st.metric("CV (Current)", f"${period_cv:,.0f}", delta=f"{period_cv - prev_period_cv:,.0f} vs prev", delta_color="normal" if (period_cv - prev_period_cv) >= 0 else "inverse")
-with r2_c4:
-    st.metric("SV (Current)", f"${period_sv:,.0f}", delta=f"{period_sv - prev_period_sv:,.0f} vs prev", delta_color="normal" if (period_sv - prev_period_sv) >= 0 else "inverse")
+# Cumulative Variances
+total_cv = total_ev - total_ac
+total_sv = total_ev - total_pv
 
-# Row 3: Cumulative Performance (Project to Date)
-st.subheader("Cumulative Performance (Project To Date)")
-r3_c1, r3_c2, r3_c3, r3_c4 = st.columns(4)
-with r3_c1:
-    st.metric("CPI (Cumulative)", f"{cpi:.3f}", delta=f"{cpi-1.0:.2f}")
-with r3_c2:
-    st.metric("SPI (Cumulative)", f"{spi:.3f}", delta=f"{spi-1.0:.2f}")
-with r3_c3:
-    total_cv = total_ev - total_ac
-    st.metric("CV (Cumulative)", f"${total_cv:,.0f}", delta=f"${period_cv:,.0f}", delta_color="normal" if period_cv >= 0 else "inverse")
-with r3_c4:
-    total_sv = total_ev - total_pv
-    st.metric("SV (Cumulative)", f"${total_sv:,.0f}", delta=f"${period_sv:,.0f}", delta_color="normal" if period_sv >= 0 else "inverse")
+# Section 1: Top Level Project Stats
+top_level_html = f"""<div class="hud-container">
+    <div class="hud-row">
+        <div class="hud-metric">
+            <div class="hud-label">Budget (BAC)</div>
+            <div class="hud-value">${total_bac:,.0f}</div>
+        </div>
+        <div class="hud-metric">
+            <div class="hud-label">Forecast (EAC)</div>
+            <div class="hud-value">${eac:,.0f}</div>
+            {fmt_delta(vac, inverse=False)}
+        </div>
+        <div class="hud-metric">
+            <div class="hud-label">Baseline Finish</div>
+            <div class="hud-value">{baseline_finish.strftime('%Y-%m-%d')}</div>
+        </div>
+        <div class="hud-metric">
+            <div class="hud-label">TCPI (To Go)</div>
+            <div class="hud-value">{tcpi:.2f}</div>
+        </div>
+    </div>
+    <div class="hud-divider"></div>
+    <div class="hud-row">
+        <div style="flex:1; margin-right: 10px;">
+            <div class="hud-section-header">Last 30 Days (Trend)</div>
+            <div class="hud-row">
+                <div class="hud-metric">
+                    <div class="hud-label">Period CPI</div>
+                    <div class="hud-value">{period_cpi:.2f}</div>
+                    {fmt_idx_delta(period_cpi - 1.0)}
+                </div>
+                <div class="hud-metric">
+                    <div class="hud-label">Period CV</div>
+                    <div class="hud-value">${period_cv:,.0f}</div>
+                    {fmt_delta(period_cv - prev_period_cv, " vs prev")}
+                </div>
+                <div class="hud-metric">
+                    <div class="hud-label">Period SPI</div>
+                    <div class="hud-value">{period_spi:.2f}</div>
+                    {fmt_idx_delta(period_spi - 1.0)}
+                </div>
+                <div class="hud-metric">
+                    <div class="hud-label">Period SV</div>
+                    <div class="hud-value">${period_sv:,.0f}</div>
+                    {fmt_delta(period_sv - prev_period_sv, " vs prev")}
+                </div>
+            </div>
+        </div>
+        <div style="flex:1; margin-left: 10px;">
+            <div class="hud-section-header">Project To Date</div>
+            <div class="hud-row">
+                <div class="hud-metric">
+                    <div class="hud-label">Cum. CPI</div>
+                    <div class="hud-value">{cpi:.2f}</div>
+                    {fmt_idx_delta(cpi - 1.0)}
+                </div>
+                <div class="hud-metric">
+                    <div class="hud-label">Cum. CV</div>
+                    <div class="hud-value">${total_cv:,.0f}</div>
+                    {fmt_delta(period_cv)}
+                </div>
+                <div class="hud-metric">
+                    <div class="hud-label">Cum. SPI</div>
+                    <div class="hud-value">{spi:.2f}</div>
+                    {fmt_idx_delta(spi - 1.0)}
+                </div>
+                <div class="hud-metric">
+                    <div class="hud-label">Cum. SV</div>
+                    <div class="hud-value">${total_sv:,.0f}</div>
+                    {fmt_delta(period_sv)}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>"""
+
+st.markdown(top_level_html, unsafe_allow_html=True)
 
 # --- Tabs ---
-t_perf, t_risk, t_details = st.tabs(["📈 Performance & Trends", "🚨 Risk & Anomalies", "📋 WBS Detail"])
+t_perf, t_risk, t_details, t_about, t_raw = st.tabs(["📈 Performance & Trends", "🚨 Risk & Anomalies", "📋 WBS Detail", "ℹ️ About & Features", "💾 Raw Data"])
+
+with t_raw:
+    st.subheader("Source Data Inspection")
+    st.caption("Review the raw datasets driving this dashboard.")
+    
+    with st.expander("📂 Task Definitions (Baseline Data)", expanded=True):
+        st.dataframe(tasks_df[tasks_df["ProjectID"] == selected_proj_id], use_container_width=True)
+        
+    with st.expander("📝 Daily Performance Logs (EV/AC/PV)", expanded=False):
+        st.dataframe(current_logs.sort_values(by="Date", ascending=False), use_container_width=True)
+
+with t_about:
+    st.header("Welcome to EarnedAI")
+    st.markdown("""
+    **EarnedAI** is a next-generation Project Controls MVP designed to demonstrate how **Artificial Intelligence** and **Advanced Analytics** can transform standard Earned Value Management (EVM).
+    
+    This portfolio demonstrates a fully local, secure, and clear approach to managing complex project data without relying on external cloud APIs.
+    """)
+    
+    st.divider()
+    
+    col_feat1, col_feat2 = st.columns(2)
+    with col_feat1:
+        st.subheader("AI Forecasting Engine")
+        st.markdown("""
+        The AI Forecaster in **EarnedAI** uses **Machine Learning (Ridge Regression)** to predict the future trajectory of your project. Unlike standard formulas (like `BAC / CPI`) which assume linear performance based on a simple average, this model looks at the **velocity and trend** of your work over time.
+
+        *   **Learning Velocity**: The model looks at every single data point in your project's history (daily EV and AC). It fits a regression line to understand your true "speed" (Earn Rate) and "burn" (Spend Rate).
+        *   **Predicting Finish**: It calculates exactly how many days it will take to finish the remaining work (`BAC - Current EV`) if you continue at your current machine-learned velocity.
+        *   **Predicting Cost (EAC)**: It then projects your spending forward to that specific finish date to give you a highly accurate **EAC (Estimate at Completion)**.
+        *   **Why Ridge?** We use Ridge Regression because it is robust against noise. If you had one bad week, the model won't panic; it smoothes out the trend to find the underlying signal.
+        """)
+    
+    with col_feat2:
+        st.subheader("Intelligent Anomaly Detection")
+        st.markdown("""
+        Don't just look at red/green cells. EarnedAI scans your WBS for specific risk patterns:
+        
+        *   **Budget Broken:** Detects when a task has physically exceeded its budget.
+        *   **Unrealistic Recovery:** Flags tasks where the efficiency needed to finish on time is mathematically improbable (`TCPI > 1.2`), identifying "Death March" tasks early.
+        *   **Efficiency Drag:** Clusters tasks that are dragging down the portfolio CPI/SPI.
+        """)
+        
+    st.divider()
+    st.subheader("📊 Key Metrics Glossary")
+    g_col1, g_col2, g_col3 = st.columns(3)
+    with g_col1:
+        st.info("**CPI (Cost Performance)**\n\nEfficiency of spend. `1.0` is perfect. `< 1.0` means over budget.")
+        st.info("**CV (Cost Variance)**\n\nAbsolute dollar amount over/under budget. Negative is bad.")
+    with g_col2:
+        st.info("**SPI (Schedule Performance)**\n\nSpeed of execution. `1.0` is on time. `< 1.0` is behind schedule.")
+        st.info("**SV (Schedule Variance)**\n\nValue of work ahead/behind schedule in dollars.")
+    with g_col3:
+        st.info("**TCPI (To Complete)**\n\nThe efficiency required *from now on* to hit the original budget. `> 1.0` means you must work harder.")
+        st.info("**EAC (Estimate at Completion)**\n\nThe projected final cost of the project based on current trends.")
 
 with t_perf:
     st.subheader("Project S-Curves")
@@ -208,7 +425,7 @@ with t_perf:
         ))
         
         # Display AI Metrics Callout
-        st.markdown("#### 🤖 AI Predictive Insights")
+        st.markdown("#### AI Predictive Insights")
         ai_col1, ai_col2, ai_col3 = st.columns(3)
         with ai_col1:
             st.metric("AI Predicted EAC", f"${ai_eac:,.0f}", delta=f"${total_bac - ai_eac:,.0f}", help="Based on Ridge Regression of historical run rates.")
