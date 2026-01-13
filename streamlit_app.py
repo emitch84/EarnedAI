@@ -55,9 +55,6 @@ with st.sidebar:
     
     # Get ID
     selected_proj_id = projects_df[projects_df["name"] == selected_proj_name]["id"].values[0]
-    
-    st.markdown("---")
-    st.info("Reviewing Portfolio Controls Data.")
 
 # --- Main Logic ---
 
